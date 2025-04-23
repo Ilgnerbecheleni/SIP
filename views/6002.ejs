@@ -58,9 +58,21 @@
 
   ua.on('newRTCSession', e => {
     session = e.session;
+
+    session.on('failed', () => {
+      document.getElementById('modalChamada').style.display = 'none';
+    });
+
+    session.on('ended', () => {
+      document.getElementById('modalChamada').style.display = 'none';
+    });
+
     if (e.originator === 'remote') {
-      document.getElementById('modalChamada').style.display = 'flex';
+      if (session.direction === 'incoming' && !session.isInProgress()) {
+        document.getElementById('modalChamada').style.display = 'flex';
+      }
     }
+
     session.connection.addEventListener('track', e => {
       document.getElementById('remoteAudio').srcObject = e.streams[0];
     });
@@ -76,8 +88,10 @@
   }
 
   function atender() {
-    if (session) session.answer({ mediaConstraints: { audio: true, video: false } });
-    document.getElementById('modalChamada').style.display = 'none';
+    if (session && session.isInProgress()) {
+      session.answer({ mediaConstraints: { audio: true, video: false } });
+      document.getElementById('modalChamada').style.display = 'none';
+    }
   }
 
   function recusar() {
