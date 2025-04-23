@@ -74,12 +74,12 @@
       document.getElementById('status').textContent = 'Registrado';
       console.log('SIP registrado com sucesso');
     });
-    
+
     ua.on('unregistered', () => {
       document.getElementById('status').textContent = 'Não registrado';
       console.log('SIP não registrado');
     });
-    
+
     ua.on('registrationFailed', e => {
       document.getElementById('status').textContent = 'Falha: ' + e.cause;
       console.error('Falha no registro SIP:', e.cause);
@@ -87,61 +87,42 @@
 
     ua.on('newRTCSession', e => {
       console.log('Nova sessão RTC:', e);
-      
-      // Limpa qualquer sessão anterior
-      if (session) {
-        console.log('Limpando sessão anterior');
-        // Remover listeners da sessão anterior se necessário
-      }
-      
+      if (session) console.log('Substituindo sessão anterior');
+
       session = e.session;
 
-      // Configurar todos os event listeners da sessão
-      session.on('progress', () => {
-        console.log('Chamada em progresso');
-      });
-      
+      session.on('progress', () => console.log('Chamada em progresso'));
       session.on('accepted', () => {
         console.log('Chamada aceita');
         document.getElementById('modalChamada').classList.remove('show');
         document.getElementById('alertaChamada').style.display = 'none';
       });
-      
-      session.on('confirmed', () => {
-        console.log('Chamada confirmada');
-      });
-      
+      session.on('confirmed', () => console.log('Chamada confirmada'));
       session.on('failed', e => {
         console.log('Chamada falhou:', e);
         document.getElementById('modalChamada').classList.remove('show');
         document.getElementById('alertaChamada').style.display = 'none';
       });
-
       session.on('ended', () => {
         console.log('Chamada encerrada');
         document.getElementById('modalChamada').classList.remove('show');
         document.getElementById('alertaChamada').style.display = 'none';
       });
 
-      // Se for uma chamada recebida
       if (e.originator === 'remote') {
         console.log('Chamada recebida');
         const from = session.remote_identity.uri.user;
         document.getElementById('fromUser').textContent = from;
         document.getElementById('alertaChamada').style.display = 'block';
-        
-        // Mostrar o modal imediatamente para chamadas recebidas
         document.getElementById('modalChamada').classList.add('show');
       }
 
-      // Configurar áudio da chamada
       session.connection.addEventListener('track', e => {
         console.log('Faixa de áudio recebida:', e);
         document.getElementById('remoteAudio').srcObject = e.streams[0];
       });
     });
 
-    // Iniciar o UA
     ua.start();
     console.log('UA iniciado');
   }
@@ -159,20 +140,22 @@
       alert("Não conectado");
       return;
     }
-    
     console.log(`Ligando para ${dest}...`);
     session = ua.call(`sip:${dest}@webrtc.jobsconnect.com.br`, {
       mediaConstraints: { audio: true, video: false },
       rtcOfferConstraints: { offerToReceiveAudio: 1, offerToReceiveVideo: 0 }
+    });
+
+    session.connection.addEventListener('track', e => {
+      console.log('Faixa de áudio recebida:', e);
+      document.getElementById('remoteAudio').srcObject = e.streams[0];
     });
   }
 
   function atender() {
     console.log('Atendendo chamada...');
     if (session) {
-      session.answer({
-        mediaConstraints: { audio: true, video: false }
-      });
+      session.answer({ mediaConstraints: { audio: true, video: false } });
       document.getElementById('modalChamada').classList.remove('show');
       document.getElementById('alertaChamada').style.display = 'none';
     } else {
@@ -182,18 +165,14 @@
 
   function recusar() {
     console.log('Recusando chamada...');
-    if (session) {
-      session.terminate();
-    }
+    if (session) session.terminate();
     document.getElementById('modalChamada').classList.remove('show');
     document.getElementById('alertaChamada').style.display = 'none';
   }
 
   function hangup() {
     console.log('Desligando chamada...');
-    if (session) {
-      session.terminate();
-    }
+    if (session) session.terminate();
   }
 </script>
 </body>
