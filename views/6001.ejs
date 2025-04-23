@@ -9,6 +9,7 @@
     .modal-overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center;
+      z-index: 9999;
     }
     .modal-content {
       background: white; padding: 2rem; border-radius: 1rem; text-align: center;
@@ -19,6 +20,8 @@
 <div class="container py-5">
   <h1 class="mb-4">Ramal 6001</h1>
   <div class="mb-3">
+    <button class="btn btn-success" onclick="connectUA()">Conectar</button>
+    <button class="btn btn-secondary" onclick="disconnectUA()">Desconectar</button>
     <button class="btn btn-primary" onclick="call()">Ligar para 6002</button>
     <button class="btn btn-danger" onclick="hangup()">Desligar</button>
   </div>
@@ -26,7 +29,7 @@
   <audio id="remoteAudio" class="mt-3 w-100" autoplay></audio>
 </div>
 
-<div id="modalChamada" class="modal-overlay d-flex">
+<div id="modalChamada" class="modal-overlay">
   <div class="modal-content">
     <h4>📞 Chamada recebida</h4>
     <button class="btn btn-success mt-2" onclick="atender()">Atender</button>
@@ -42,45 +45,55 @@
   let ua = null;
   let session = null;
 
-  const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
-  const configuration = {
-    sockets: [socket],
-    uri: `sip:${user}@webrtc.jobsconnect.com.br`,
-    password: pass,
-    session_timers: false,
-    register: true
-  };
+  function connectUA() {
+    const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
+    const configuration = {
+      sockets: [socket],
+      uri: `sip:${user}@webrtc.jobsconnect.com.br`,
+      password: pass,
+      session_timers: false,
+      register: true
+    };
 
-  ua = new JsSIP.UA(configuration);
+    ua = new JsSIP.UA(configuration);
 
-  ua.on('registered', () => document.getElementById('status').textContent = 'Registrado');
-  ua.on('registrationFailed', e => document.getElementById('status').textContent = 'Falha: ' + e.cause);
+    ua.on('registered', () => document.getElementById('status').textContent = 'Registrado');
+    ua.on('registrationFailed', e => document.getElementById('status').textContent = 'Falha: ' + e.cause);
 
-  ua.on('newRTCSession', e => {
-    session = e.session;
+    ua.on('newRTCSession', e => {
+      session = e.session;
 
-    session.on('failed', () => {
-      document.getElementById('modalChamada').style.display = 'none';
-    });
+      session.on('failed', () => {
+        document.getElementById('modalChamada').style.display = 'none';
+      });
 
-    session.on('ended', () => {
-      document.getElementById('modalChamada').style.display = 'none';
-    });
+      session.on('ended', () => {
+        document.getElementById('modalChamada').style.display = 'none';
+      });
 
-    if (e.originator === 'remote') {
-      if (session.direction === 'incoming' && !session.isInProgress()) {
-        document.getElementById('modalChamada').style.display = 'flex';
+      if (e.originator === 'remote') {
+        if (session.direction === 'incoming' && !session.isInProgress() && session.status === JsSIP.RTCSession.C.STATUS_WAITING_FOR_ANSWER) {
+          document.getElementById('modalChamada').style.display = 'flex';
+        }
       }
-    }
 
-    session.connection.addEventListener('track', e => {
-      document.getElementById('remoteAudio').srcObject = e.streams[0];
+      session.connection.addEventListener('track', e => {
+        document.getElementById('remoteAudio').srcObject = e.streams[0];
+      });
     });
-  });
 
-  ua.start();
+    ua.start();
+  }
+
+  function disconnectUA() {
+    if (ua) {
+      ua.stop();
+      document.getElementById('status').textContent = 'Desconectado';
+    }
+  }
 
   function call() {
+    if (!ua || ua.isRegistered() === false) return alert("Não conectado");
     session = ua.call(`sip:${dest}@webrtc.jobsconnect.com.br`, {
       mediaConstraints: { audio: true, video: false },
       rtcOfferConstraints: { offerToReceiveAudio: 1, offerToReceiveVideo: 0 }
