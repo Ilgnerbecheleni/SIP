@@ -117,9 +117,13 @@
         document.getElementById('modalChamada').classList.add('show');
       }
 
-      session.connection.addEventListener('track', e => {
-        console.log('Faixa de áudio recebida:', e);
-        document.getElementById('remoteAudio').srcObject = e.streams[0];
+      session.on('peerconnection', e => {
+        e.peerconnection.addEventListener('track', event => {
+          console.log('Faixa de áudio recebida:', event);
+          const remoteStream = new MediaStream();
+          remoteStream.addTrack(event.track);
+          document.getElementById('remoteAudio').srcObject = remoteStream;
+        });
       });
     });
 
@@ -146,9 +150,13 @@
       rtcOfferConstraints: { offerToReceiveAudio: 1, offerToReceiveVideo: 0 }
     });
 
-    session.connection.addEventListener('track', e => {
-      console.log('Faixa de áudio recebida:', e);
-      document.getElementById('remoteAudio').srcObject = e.streams[0];
+    session.on('peerconnection', e => {
+      e.peerconnection.addEventListener('track', event => {
+        console.log('Faixa de áudio recebida:', event);
+        const remoteStream = new MediaStream();
+        remoteStream.addTrack(event.track);
+        document.getElementById('remoteAudio').srcObject = remoteStream;
+      });
     });
   }
 
