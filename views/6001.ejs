@@ -1,3 +1,4 @@
+<!-- views/6001.ejs -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -11,17 +12,12 @@
       background: rgba(0, 0, 0, 0.5); display: none; align-items: center; justify-content: center;
       z-index: 9999;
     }
-    .modal-overlay.show {
-      display: flex !important;
-    }
+    .modal-overlay.show { display: flex !important; }
     .modal-content {
       background: white; padding: 2rem; border-radius: 1rem; text-align: center;
     }
     #alertaChamada {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      z-index: 9999;
+      position: fixed; top: 10px; right: 10px; z-index: 9999;
     }
   </style>
 </head>
@@ -55,104 +51,61 @@
   const user = '6001';
   const pass = 'senha6001';
   const dest = '6002';
-  let ua = null;
-  let session = null;
+  let ua = null, session = null;
 
   function connectUA() {
     const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
-    const configuration = {
-      sockets: [socket],
-      uri: `sip:${user}@webrtc.jobsconnect.com.br`,
-      password: pass,
-      session_timers: false,
-      register: true
-    };
+    const configuration = { sockets: [socket], uri: `sip:${user}@webrtc.jobsconnect.com.br`, password: pass, register: true };
 
     ua = new JsSIP.UA(configuration);
-
-    ua.on('registered', () => {
-      document.getElementById('status').textContent = 'Registrado';
-      console.log('SIP registrado com sucesso');
-    });
-
-    ua.on('unregistered', () => {
-      document.getElementById('status').textContent = 'Não registrado';
-      console.log('SIP não registrado');
-    });
-
-    ua.on('registrationFailed', e => {
-      document.getElementById('status').textContent = 'Falha: ' + e.cause;
-      console.error('Falha no registro SIP:', e.cause);
-    });
+    ua.on('registered', () => document.getElementById('status').textContent = 'Registrado');
+    ua.on('registrationFailed', e => document.getElementById('status').textContent = 'Falha: ' + e.cause);
+    ua.on('unregistered', () => document.getElementById('status').textContent = 'Desconectado');
 
     ua.on('newRTCSession', e => {
-      console.log('Nova sessão RTC:', e);
-      if (session) console.log('Substituindo sessão anterior');
-
       session = e.session;
 
-      session.on('progress', () => console.log('Chamada em progresso'));
-      session.on('accepted', () => {
-        console.log('Chamada aceita');
-        document.getElementById('modalChamada').classList.remove('show');
-        document.getElementById('alertaChamada').style.display = 'none';
-      });
-      session.on('confirmed', () => console.log('Chamada confirmada'));
-      session.on('failed', e => {
-        console.log('Chamada falhou:', e);
-        document.getElementById('modalChamada').classList.remove('show');
-        document.getElementById('alertaChamada').style.display = 'none';
-      });
-      session.on('ended', () => {
-        console.log('Chamada encerrada');
-        document.getElementById('modalChamada').classList.remove('show');
-        document.getElementById('alertaChamada').style.display = 'none';
-      });
-
       if (e.originator === 'remote') {
-        console.log('Chamada recebida');
-        const from = session.remote_identity.uri.user;
-        document.getElementById('fromUser').textContent = from;
+        document.getElementById('fromUser').textContent = session.remote_identity.uri.user;
         document.getElementById('alertaChamada').style.display = 'block';
         document.getElementById('modalChamada').classList.add('show');
       }
 
       session.on('peerconnection', e => {
         e.peerconnection.addEventListener('track', event => {
-          console.log('Faixa de áudio recebida:', event);
           const remoteStream = new MediaStream();
           remoteStream.addTrack(event.track);
           document.getElementById('remoteAudio').srcObject = remoteStream;
         });
       });
+
+      session.on('ended', () => hideModal());
+      session.on('failed', () => hideModal());
+      session.on('accepted', () => hideModal());
     });
 
     ua.start();
-    console.log('UA iniciado');
+  }
+
+  function hideModal() {
+    document.getElementById('modalChamada').classList.remove('show');
+    document.getElementById('alertaChamada').style.display = 'none';
   }
 
   function disconnectUA() {
-    if (ua) {
-      ua.stop();
-      document.getElementById('status').textContent = 'Desconectado';
-      console.log('UA desconectado');
-    }
+    if (ua) ua.stop();
+    document.getElementById('status').textContent = 'Desconectado';
   }
 
   function call() {
-    if (!ua || ua.isRegistered() === false) {
-      alert("Não conectado");
-      return;
-    }
-    console.log(`Ligando para ${dest}...`);
+    if (!ua || !ua.isRegistered()) return alert("Não conectado");
+
     session = ua.call(`sip:${dest}@webrtc.jobsconnect.com.br`, {
-      mediaConstraints: { audio: true, video: false },
-      rtcOfferConstraints: { offerToReceiveAudio: 1, offerToReceiveVideo: 0 }
+      mediaConstraints: { audio: true, video: false }
     });
 
     session.on('peerconnection', e => {
       e.peerconnection.addEventListener('track', event => {
-        console.log('Faixa de áudio recebida:', event);
         const remoteStream = new MediaStream();
         remoteStream.addTrack(event.track);
         document.getElementById('remoteAudio').srcObject = remoteStream;
@@ -161,25 +114,16 @@
   }
 
   function atender() {
-    console.log('Atendendo chamada...');
-    if (session) {
-      session.answer({ mediaConstraints: { audio: true, video: false } });
-      document.getElementById('modalChamada').classList.remove('show');
-      document.getElementById('alertaChamada').style.display = 'none';
-    } else {
-      console.error('Nenhuma sessão disponível para atender');
-    }
+    if (session) session.answer({ mediaConstraints: { audio: true, video: false } });
+    hideModal();
   }
 
   function recusar() {
-    console.log('Recusando chamada...');
     if (session) session.terminate();
-    document.getElementById('modalChamada').classList.remove('show');
-    document.getElementById('alertaChamada').style.display = 'none';
+    hideModal();
   }
 
   function hangup() {
-    console.log('Desligando chamada...');
     if (session) session.terminate();
   }
 </script>
