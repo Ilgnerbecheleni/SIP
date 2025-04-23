@@ -22,6 +22,14 @@ app.get('/', (req, res) => {
   res.render('index');
 });
 
+app.get('/6001', (req, res) => {
+    res.render('6001');
+  });
+  
+  app.get('/6002', (req, res) => {
+    res.render('6002');
+  });
+
 // Inicia servidor HTTPS na porta 443
 https.createServer(options, app).listen(443, () => {
   console.log('Servidor HTTPS ativo em https://webrtc.jobsconnect.com.br');
