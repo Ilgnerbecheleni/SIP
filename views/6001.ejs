@@ -14,6 +14,12 @@
     .modal-content {
       background: white; padding: 2rem; border-radius: 1rem; text-align: center;
     }
+    #alertaChamada {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 9999;
+    }
   </style>
 </head>
 <body class="bg-light">
@@ -35,6 +41,10 @@
     <button class="btn btn-success mt-2" onclick="atender()">Atender</button>
     <button class="btn btn-secondary mt-2" onclick="recusar()">Recusar</button>
   </div>
+</div>
+
+<div id="alertaChamada" class="alert alert-warning" style="display:none;">
+  📞 Ligação recebida de <span id="fromUser"></span>
 </div>
 
 <script src="/jssip.min.js"></script>
@@ -65,13 +75,19 @@
 
       session.on('failed', () => {
         document.getElementById('modalChamada').style.display = 'none';
+        document.getElementById('alertaChamada').style.display = 'none';
       });
 
       session.on('ended', () => {
         document.getElementById('modalChamada').style.display = 'none';
+        document.getElementById('alertaChamada').style.display = 'none';
       });
 
       if (e.originator === 'remote') {
+        const from = session.remote_identity.uri.user;
+        document.getElementById('fromUser').textContent = from;
+        document.getElementById('alertaChamada').style.display = 'block';
+
         if (session.direction === 'incoming' && !session.isInProgress() && session.status === JsSIP.RTCSession.C.STATUS_WAITING_FOR_ANSWER) {
           document.getElementById('modalChamada').style.display = 'flex';
         }
@@ -104,12 +120,14 @@
     if (session && session.isInProgress()) {
       session.answer({ mediaConstraints: { audio: true, video: false } });
       document.getElementById('modalChamada').style.display = 'none';
+      document.getElementById('alertaChamada').style.display = 'none';
     }
   }
 
   function recusar() {
     if (session) session.terminate();
     document.getElementById('modalChamada').style.display = 'none';
+    document.getElementById('alertaChamada').style.display = 'none';
   }
 
   function hangup() {
