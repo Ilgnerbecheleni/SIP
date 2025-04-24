@@ -9,7 +9,7 @@ const server = https.createServer({
   cert: fs.readFileSync("./cert/cert.pem")
 }, app);
 
-const PORT = 8089;
+const PORT = 443;
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
