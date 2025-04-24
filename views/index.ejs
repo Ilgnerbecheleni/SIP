@@ -69,7 +69,14 @@
         rtcOfferConstraints: { offerToReceiveAudio: 1 }
       };
 
-      session = ua.call('sip:1001@webrtc.jobsconnect.com.br', options);
+      session = ua.call('sip:1001@webrtc.jobsconnect.com.br', {
+  eventHandlers,
+  mediaConstraints: { audio: true, video: false },
+  rtcOfferConstraints: { offerToReceiveAudio: 1 },
+  pcConfig: {
+    iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
+  }
+});
 
       session.connection.addEventListener("addstream", function(e) {
         document.getElementById('remoteAudio').srcObject = e.stream;
@@ -104,11 +111,14 @@
     });
 
     function answerCall() {
-      session.answer({
-        mediaConstraints: { audio: true, video: false },
-        rtcOfferConstraints: { offerToReceiveAudio: 1 }
-      });
+  session.answer({
+    mediaConstraints: { audio: true, video: false },
+    rtcOfferConstraints: { offerToReceiveAudio: 1 },
+    pcConfig: {
+      iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
     }
+  });
+}
 
     function rejectCall() {
       session.terminate();
