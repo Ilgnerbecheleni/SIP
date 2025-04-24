@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Receber Chamada</title>
+</head>
+<body>
+  <h2>Ramal 1001 - Aguardando chamadas...</h2>
+  <div id="status">Status: Aguardando...</div>
+  <button id="answerBtn" style="display:none;" onclick="answerCall()">Atender</button>
+  <button id="rejectBtn" style="display:none;" onclick="rejectCall()">Rejeitar</button>
+  <audio id="remoteAudio" autoplay></audio>
+
+  <script src="/jssip.min.js"></script>
+
+  <script>
+    const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
+    const configuration = {
+      sockets: [socket],
+      uri: 'sip:1001@webrtc.jobsconnect.com.br',
+      password: 'senha1001'
+    };
+
+    const ua = new JsSIP.UA(configuration);
+    ua.start();
+
+    let session = null;
+
+    ua.on('newRTCSession', function(e) {
+      if (e.originator === 'remote') {
+        session = e.session;
+        document.getElementById("status").innerText = "Chamada recebida!";
+        document.getElementById("answerBtn").style.display = "inline";
+        document.getElementById("rejectBtn").style.display = "inline";
+
+        session.on('ended', () => {
+          document.getElementById("status").innerText = "Chamada encerrada.";
+          document.getElementById("answerBtn").style.display = "none";
+          document.getElementById("rejectBtn").style.display = "none";
+        });
+
+        session.on('failed', () => {
+          document.getElementById("status").innerText = "Chamada falhou ou foi rejeitada.";
+          document.getElementById("answerBtn").style.display = "none";
+          document.getElementById("rejectBtn").style.display = "none";
+        });
+
+        session.on('accepted', () => {
+          document.getElementById("status").innerText = "Chamada ativa.";
+        });
+
+        session.connection.addEventListener("addstream", function(e) {
+          document.getElementById('remoteAudio').srcObject = e.stream;
+        });
+      }
+    });
+
+    function answerCall() {
+      session.answer({
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: 1 }
+      });
+    }
+
+    function rejectCall() {
+      session.terminate();
+    }
+  </script>
+</body>
+</html>

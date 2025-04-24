@@ -26,12 +26,8 @@ app.get('/', (req, res) => {
   res.render('index');
 });
 
-app.get('/ramal1000', (req, res) => {
-  res.render('ramal1000');
-});
-
-app.get('/ramal2000', (req, res) => {
-  res.render('ramal2000');
+app.get("/receiver", (req, res) => {
+  res.render("receiver");
 });
 
 // Iniciar servidor HTTPS

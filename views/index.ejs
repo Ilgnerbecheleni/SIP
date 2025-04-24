@@ -1,32 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>WebRTC Asterisk Demo</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
-      text-align: center;
-    }
-    .btn {
-      padding: 10px 20px;
-      margin: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      text-decoration: none;
-      font-size: 16px;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <title>WebRTC SIP Call</title>
 </head>
 <body>
-  <h1>WebRTC Asterisk Demo</h1>
-  <p>Escolha um dos ramais para acessar:</p>
-  
-  <div>
-    <a href="/ramal1000" class="btn">Ramal 1000</a>
-    <a href="/ramal2000" class="btn">Ramal 2000</a>
-  </div>
+  <h2>Chamada SIP</h2>
+  <button onclick="makeCall()">Ligar</button>
+  <audio id="remoteAudio" autoplay></audio>
+
+  <script src="jssip.min.js"></script>
+  <script>
+    const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
+    const configuration = {
+      sockets: [socket],
+      uri: 'sip:1000@webrtc.jobsconnect.com.br',
+      password: 'senha1000'
+    };
+
+    const ua = new JsSIP.UA(configuration);
+    ua.start();
+
+    let session = null;
+
+    function makeCall() {
+      const eventHandlers = {
+        'progress': () => console.log('Chamada em progresso...'),
+        'failed': e => console.error('Chamada falhou:', e),
+        'ended': () => console.log('Chamada encerrada'),
+        'confirmed': () => console.log('Chamada confirmada'),
+      };
+
+      const options = {
+        eventHandlers,
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: 1, offerToReceiveVideo: 0 }
+      };
+
+      session = ua.call('sip:1001@webrtc.jobsconnect.com.br', options);
+
+      session.connection.addEventListener("addstream", function (e) {
+        document.getElementById('remoteAudio').srcObject = e.stream;
+      });
+    }
+  </script>
 </body>
 </html>
