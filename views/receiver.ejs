@@ -84,41 +84,32 @@
     }
 
     ua.on('newRTCSession', function(e) {
-      if (e.originator === 'remote') {
-        session = e.session;
-        updateStatus("Chamada recebida!", "incoming");
-        showButtons();
+  if (e.originator === 'remote') {
+    session = e.session;
+    document.getElementById("status").innerText = "Chamada recebida!";
+    document.getElementById("answerBtn").style.display = "inline";
+    document.getElementById("rejectBtn").style.display = "inline";
 
-        session.on('ended', () => {
-          updateStatus("Chamada encerrada.", "ended");
-          hideButtons();
-        });
-        
-        session.on('failed', () => {
-          updateStatus("Chamada falhou ou foi rejeitada.", "failed");
-          hideButtons();
-        });
-        
-        session.on('accepted', () => {
-          updateStatus("Chamada ativa.", "active");
-          document.getElementById("endBtn").style.display = "inline-block";
-        });
-
-        session.connection.addEventListener("addstream", function(e) {
-          document.getElementById('remoteAudio').srcObject = e.stream;
-        });
-      }
+    session.on('ended', () => {
+      document.getElementById("status").innerText = "Chamada encerrada.";
+      hideButtons();
     });
 
-    function answerCall() {
-  session.answer({
-    mediaConstraints: { audio: true, video: false },
-    rtcOfferConstraints: { offerToReceiveAudio: 1 },
-    pcConfig: {
-      iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
-    }
-  });
-}
+    session.on('failed', () => {
+      document.getElementById("status").innerText = "Chamada falhou ou foi rejeitada.";
+      hideButtons();
+    });
+
+    session.on('accepted', () => {
+      document.getElementById("status").innerText = "Chamada ativa.";
+      document.getElementById("endBtn").style.display = "inline";
+    });
+
+    session.connection.addEventListener("addstream", function(e) {
+      document.getElementById('remoteAudio').srcObject = e.stream;
+    });
+  }
+});
     function rejectCall() {
       session.terminate();
     }
