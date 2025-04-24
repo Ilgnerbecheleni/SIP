@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Ramal 1000</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    #controls {
+      margin: 20px 0;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    #status {
+      color: #007bff;
+      font-weight: bold;
+    }
+    #debug {
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border: 1px solid #ddd;
+      height: 200px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    #remoteVideo {
+      width: 640px;
+      height: 480px;
+      background-color: #f0f0f0;
+      margin: 20px 0;
+    }
+  </style>
+  <script src="/js/jssip.min.js"></script>
+</head>
+<body>
+  <h1>Ramal 1000</h1>
+  <p>Status: <span id="status">Desconectado</span></p>
+  
+  <div id="controls">
+    <button id="connect">Conectar</button>
+    <button id="disconnect" disabled>Desconectar</button>
+    <input type="text" id="number" value="2000" placeholder="Digite o número">
+    <button id="call" disabled>Ligar</button>
+    <button id="hangup" disabled>Desligar</button>
+  </div>
+  
+  <div>
+    <video id="remoteVideo" autoplay></video>
+  </div>
+  
+  <div>
+    <h3>Debug Info:</h3>
+    <div id="debug"></div>
+  </div>
+  
+  <script>
+    // Função para logar informações
+    function log(message) {
+      const debug = document.getElementById('debug');
+      const timestamp = new Date().toLocaleTimeString();
+      debug.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+      debug.scrollTop = debug.scrollHeight;
+      console.log(`[${timestamp}] ${message}`);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Verificar se o JsSIP está disponível
+      if (typeof JsSIP === 'undefined') {
+        log("ERRO: Biblioteca JsSIP não carregada");
+        document.getElementById('status').textContent = 'Erro: Biblioteca JsSIP não carregada';
+        document.getElementById('connect').disabled = true;
+        return;
+      }
+      
+      log("JsSIP carregado com sucesso. Versão: " + JsSIP.version);
+      
+      // Configurar nível de debug do JsSIP
+      JsSIP.debug.enable('JsSIP:*');
+      
+      let ua;
+      let session;
+      const domain = 'webrtc.jobsconnect.com.br';
+      
+      const statusElem = document.getElementById('status');
+      const connectBtn = document.getElementById('connect');
+      const disconnectBtn = document.getElementById('disconnect');
+      const callBtn = document.getElementById('call');
+      const hangupBtn = document.getElementById('hangup');
+      const numberInput = document.getElementById('number');
+      const remoteVideo = document.getElementById('remoteVideo');
+      
+      connectBtn.addEventListener('click', () => {
+        try {
+          log("Tentando conectar ao WebSocket wss://" + domain + ":8089/ws");
+          
+          const socket = new JsSIP.WebSocketInterface(`wss://${domain}:8089/ws`);
+          
+          // Adicionar eventos ao WebSocket para depuração
+          socket.onconnecting = function() { log("WebSocket: Conectando..."); };
+          socket.onconnect = function() { log("WebSocket: Conectado!"); };
+          socket.ondisconnect = function(e) { log("WebSocket: Desconectado - " + e.reason); };
+          socket.onerror = function(e) { log("WebSocket: Erro - " + e.message); };
+          
+          const configuration = {
+            sockets: [socket],
+            uri: `sip:1000@${domain}`,
+            password: 'senha1000',
+            display_name: 'Ramal 1000',
+            register: true,
+            register_expires: 300,
+            connection_recovery_min_interval: 2,
+            connection_recovery_max_interval: 30
+          };
+          
+          log("Criando UA com configuração: " + JSON.stringify(configuration));
+          ua = new JsSIP.UA(configuration);
+          
+          // Configurar todos os eventos possíveis para depuração
+          ua.on('connecting', () => {
+            log("UA: Conectando ao servidor SIP");
+            statusElem.textContent = 'Conectando...';
+          });
+          
+          ua.on('connected', () => {
+            log("UA: Conectado ao servidor SIP");
+            statusElem.textContent = 'Conectado ao Asterisk';
+            connectBtn.disabled = true;
+            disconnectBtn.disabled = false;
+            callBtn.disabled = false;
+          });
+          
+          ua.on('disconnected', (e) => {
+            log("UA: Desconectado do servidor SIP - " + e.cause);
+            statusElem.textContent = 'Desconectado';
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            callBtn.disabled = true;
+            hangupBtn.disabled = true;
+          });
+          
+          ua.on('registered', () => {
+            log("UA: Registrado com sucesso como 1000@" + domain);
+            statusElem.textContent = 'Registrado como Ramal 1000';
+          });
+          
+          ua.on('unregistered', (e) => {
+            log("UA: Desregistrado - " + e.cause);
+          });
+          
+          ua.on('registrationFailed', (e) => {
+            log("UA: Falha no registro - Causa: " + e.cause + " - Resposta: " + 
+                (e.response ? (e.response.status_code + " " + e.response.reason_phrase) : "Nenhuma resposta"));
+            statusElem.textContent = 'Falha ao registrar';
+          });
+          
+          ua.on('newRTCSession', (data) => {
+            session = data.session;
+            const direction = session.direction;
+            
+            log("UA: Nova sessão RTC - Direção: " + direction);
+            
+            // Monitorar todos os estados da sessão
+            session.on('progress', (e) => {
+              log("Sessão: Progresso - " + (e.originator === 'remote' ? 'Remoto' : 'Local'));
+              statusElem.textContent = 'Chamando...';
+            });
+            
+            session.on('connecting', (e) => {
+              log("Sessão: Conectando - " + (e.originator === 'remote' ? 'Remoto' : 'Local'));
+            });
+            
+            session.on('accepted', (e) => {
+              log("Sessão: Aceita - " + (e.originator === 'remote' ? 'Remoto' : 'Local'));
+              statusElem.textContent = 'Chamada aceita';
+            });
+            
+            session.on('confirmed', (e) => {
+              log("Sessão: Confirmada - " + (e.originator === 'remote' ? 'Remoto' : 'Local'));
+              statusElem.textContent = 'Chamada em andamento';
+              hangupBtn.disabled = false;
+              callBtn.disabled = true;
+            });
+            
+            session.on('ended', (e) => {
+              log("Sessão: Finalizada - Causa: " + e.cause + " - " + (e.originator === 'remote' ? 'Remoto' : 'Local'));
+              statusElem.textContent = 'Chamada finalizada';
+              hangupBtn.disabled = true;
+              callBtn.disabled = false;
+            });
+            
+            session.on('failed', (e) => {
+              log("Sessão: Falhou - Causa: " + e.cause + " - " + (e.originator === 'remote' ? 'Remoto' : 'Local'));
+              log("Detalhes da falha: " + JSON.stringify({
+                status_code: e.message ? e.message.status_code : 'N/A',
+                reason_phrase: e.message ? e.message.reason_phrase : 'N/A'
+              }));
+              
+              statusElem.textContent = 'Chamada falhou: ' + e.cause;
+              hangupBtn.disabled = true;
+              callBtn.disabled = false;
+            });
+            
+            session.on('peerconnection', (e) => {
+              log("Sessão: PeerConnection criada");
+              
+              const peerconnection = e.peerconnection;
+              
+              peerconnection.onicecandidate = function(ice) {
+                log("ICE: Novo candidato - " + (ice.candidate ? ice.candidate.candidate : "Candidatos completados"));
+              };
+              
+              peerconnection.oniceconnectionstatechange = function() {
+                log("ICE: Estado da conexão mudou para " + peerconnection.iceConnectionState);
+              };
+              
+              peerconnection.onicegatheringstatechange = function() {
+                log("ICE: Estado da coleta mudou para " + peerconnection.iceGatheringState);
+              };
+              
+              peerconnection.onsignalingstatechange = function() {
+                log("WebRTC: Estado de sinalização mudou para " + peerconnection.signalingState);
+              };
+            });
+            
+            if (direction === 'incoming') {
+              log("Chamada recebida de " + session.remote_identity.uri.user);
+              statusElem.textContent = `Chamada recebida de ${session.remote_identity.uri.user}`;
+              
+              try {
+                log("Tentando responder à chamada com vídeo e áudio");
+                session.answer({
+                  mediaConstraints: { audio: true, video: true }
+                });
+              } catch (e) {
+                log("ERRO ao responder à chamada: " + e.message);
+              }
+            }
+            
+            // Evento para receber streams remotos
+            session.connection.addEventListener('addstream', (e) => {
+              log("Stream remoto adicionado");
+              remoteVideo.srcObject = e.stream;
+            });
+          });
+          
+          log("Iniciando UA");
+          ua.start();
+        } catch (e) {
+          log("ERRO ao configurar JsSIP: " + e.message);
+          statusElem.textContent = 'Erro ao conectar: ' + e.message;
+        }
+      });
+      
+      disconnectBtn.addEventListener('click', () => {
+        if (ua) {
+          log("Desconectando UA");
+          ua.stop();
+        }
+      });
+      
+      callBtn.addEventListener('click', () => {
+        const number = numberInput.value;
+        if (number && ua) {
+          log("Iniciando chamada para " + number + "@" + domain);
+          statusElem.textContent = `Ligando para ${number}...`;
+          
+          try {
+            const options = {
+              mediaConstraints: { audio: true, video: true },
+              pcConfig: {
+                iceServers: [
+                  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+                ]
+              }
+            };
+            
+            log("Opções de chamada: " + JSON.stringify(options));
+            session = ua.call(`sip:${number}@${domain}`, options);
+          } catch (e) {
+            log("ERRO ao iniciar chamada: " + e.message);
+            statusElem.textContent = 'Erro ao ligar: ' + e.message;
+          }
+        }
+      });
+      
+      hangupBtn.addEventListener('click', () => {
+        if (session) {
+          log("Terminando chamada");
+          session.terminate();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
