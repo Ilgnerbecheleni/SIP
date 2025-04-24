@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quarto</title>
+  <script src="/js/jssip.min.js"></script>
+  <script src="/js/sip.js"></script>
+</head>
+<body>
+  <h1>Quarto (Ramal 1001)</h1>
+  <button onclick="call('1000')">Ligar para Recepção</button>
+  <button onclick="hangup()">Desligar</button>
+  <audio id="remoteAudio" autoplay></audio>
+
+  <script>
+    initJsSIP({
+      uri: "sip:1001@webrtc.jobsconnect.com.br",
+      password: "senha1001",
+      ws: "wss://webrtc.jobsconnect.com.br:8089/ws"
+    });
+  </script>
+</body>
+</html>
