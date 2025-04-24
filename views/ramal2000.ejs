@@ -18,6 +18,10 @@
       border: none;
       border-radius: 4px;
     }
+    #answer {
+      display: none;
+      background-color: #ffc107;
+    }
     #status {
       color: #28a745;
       font-weight: bold;
@@ -33,34 +37,37 @@
 <body>
   <h1>Ramal 2000</h1>
   <p>Status: <span id="status">Desconectado</span></p>
-  
+
   <div id="controls">
     <button id="connect">Conectar</button>
     <button id="disconnect" disabled>Desconectar</button>
     <input type="text" id="number" value="1000" placeholder="Digite o número">
     <button id="call" disabled>Ligar</button>
+    <button id="answer">Atender</button>
     <button id="hangup" disabled>Desligar</button>
   </div>
-  
+
   <div>
     <video id="remoteVideo" autoplay></video>
   </div>
-  
+
   <script src="/js/jssip.min.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      let ua;
-      let session;
+    document.addEventListener('DOMContentLoaded', async () => {
+      let ua, session;
       const domain = 'webrtc.jobsconnect.com.br';
-      
+
       const statusElem = document.getElementById('status');
       const connectBtn = document.getElementById('connect');
       const disconnectBtn = document.getElementById('disconnect');
       const callBtn = document.getElementById('call');
       const hangupBtn = document.getElementById('hangup');
+      const answerBtn = document.getElementById('answer');
       const numberInput = document.getElementById('number');
       const remoteVideo = document.getElementById('remoteVideo');
-      
+
+      let incomingSession = null;
+
       connectBtn.addEventListener('click', () => {
         const socket = new JsSIP.WebSocketInterface(`wss://${domain}:8089/ws`);
         const configuration = {
@@ -69,16 +76,16 @@
           password: 'senha2000',
           display_name: 'Ramal 2000'
         };
-        
+
         ua = new JsSIP.UA(configuration);
-        
+
         ua.on('connected', () => {
           statusElem.textContent = 'Conectado ao Asterisk';
           connectBtn.disabled = true;
           disconnectBtn.disabled = false;
           callBtn.disabled = false;
         });
-        
+
         ua.on('disconnected', () => {
           statusElem.textContent = 'Desconectado';
           connectBtn.disabled = false;
@@ -86,67 +93,72 @@
           callBtn.disabled = true;
           hangupBtn.disabled = true;
         });
-        
+
         ua.on('registered', () => {
           statusElem.textContent = 'Registrado como Ramal 2000';
         });
-        
+
         ua.on('newRTCSession', (data) => {
           session = data.session;
-          
-          if (session.direction === 'incoming') {
-            statusElem.textContent = `Chamada recebida de ${session.remote_identity.uri.user}`;
-            session.answer({
-              mediaConstraints: { audio: true, video: true }
-            });
-          }
-          
+
           session.on('confirmed', () => {
             statusElem.textContent = 'Chamada em andamento';
             hangupBtn.disabled = false;
             callBtn.disabled = true;
+            answerBtn.style.display = 'none';
           });
-          
+
           session.on('ended', () => {
             statusElem.textContent = 'Chamada finalizada';
             hangupBtn.disabled = true;
             callBtn.disabled = false;
           });
-          
+
           session.on('failed', () => {
             statusElem.textContent = 'Chamada falhou';
             hangupBtn.disabled = true;
             callBtn.disabled = false;
+            answerBtn.style.display = 'none';
           });
-          
-          session.connection.addEventListener('addstream', (e) => {
-            remoteVideo.srcObject = e.stream;
-          });
+
+          session.connection.ontrack = (e) => {
+            remoteVideo.srcObject = e.streams[0];
+          };
+
+          if (session.direction === 'incoming') {
+            statusElem.textContent = `Chamada de ${session.remote_identity.uri.user}`;
+            incomingSession = session;
+            answerBtn.style.display = 'inline-block';
+          }
         });
-        
+
         ua.start();
       });
-      
+
       disconnectBtn.addEventListener('click', () => {
-        if (ua) {
-          ua.stop();
-        }
+        if (ua) ua.stop();
       });
-      
-      callBtn.addEventListener('click', () => {
+
+      callBtn.addEventListener('click', async () => {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
         const number = numberInput.value;
-        if (number && ua) {
-          statusElem.textContent = `Ligando para ${number}...`;
-          const options = {
-            mediaConstraints: { audio: true, video: true }
-          };
-          session = ua.call(`sip:${number}@${domain}`, options);
-        }
+        const options = {
+          mediaConstraints: { audio: true, video: false },
+          pcConfig: {
+            iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
+          }
+        };
+        session = ua.call(`sip:${number}@${domain}`, options);
       });
-      
+
       hangupBtn.addEventListener('click', () => {
-        if (session) {
-          session.terminate();
+        if (session) session.terminate();
+      });
+
+      answerBtn.addEventListener('click', async () => {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (incomingSession) {
+          incomingSession.answer({ mediaConstraints: { audio: true, video: false } });
         }
       });
     });
