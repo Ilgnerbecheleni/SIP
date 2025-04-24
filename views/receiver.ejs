@@ -45,120 +45,146 @@
   <script>
     const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
     const configuration = {
-      sockets: [socket],
-      uri: 'sip:1001@webrtc.jobsconnect.com.br',
-      password: 'senha1001'
-    };
-
+  sockets: [socket],
+  uri: 'sip:1001@webrtc.jobsconnect.com.br',
+  password: 'senha1001',
+  register: true,
+  instance_id: generateUUID(),
+  reg_id: 1,
+  connection_recovery_min_interval: 2,
+  connection_recovery_max_interval: 30
+};
+  
     const ua = new JsSIP.UA(configuration);
     ua.start();
 
-    let session = null;
+    function generateUUID() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+}
 
+  
+    let session = null;
+  
     function makeCall() {
       const eventHandlers = {
         'progress': () => updateStatus("Chamada em progresso...", "calling"),
-        'failed': e => updateStatus("Chamada falhou", "failed"),
+        'failed': () => updateStatus("Chamada falhou", "failed"),
         'ended': () => updateStatus("Chamada encerrada", "ended"),
-        'confirmed': () => updateStatus("Chamada confirmada", "confirmed")
+        'confirmed': () => {
+          updateStatus("Chamada ativa", "active");
+          showButton("endBtn");
+        }
       };
-
-      const options = {
+  
+      session = ua.call('sip:1000@webrtc.jobsconnect.com.br', {
         eventHandlers,
         mediaConstraints: { audio: true, video: false },
-        rtcOfferConstraints: { offerToReceiveAudio: 1 }
-      };
-
-      session = ua.call('sip:1001@webrtc.jobsconnect.com.br', {
-  eventHandlers,
-  mediaConstraints: { audio: true, video: false },
-  rtcOfferConstraints: { offerToReceiveAudio: 1 },
-  pcConfig: {
-    iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
-  }
-});
-
-      session.connection.addEventListener("addstream", function(e) {
+        rtcOfferConstraints: { offerToReceiveAudio: 1 },
+        pcConfig: {
+          iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
+        }
+      });
+  
+      session.connection.addEventListener("addstream", function (e) {
         document.getElementById('remoteAudio').srcObject = e.stream;
       });
     }
-
+  
     ua.on('newRTCSession', function(e) {
-  if (e.originator === 'remote') {
-    session = e.session;
-    document.getElementById("status").innerText = "Chamada recebida!";
-    document.getElementById("answerBtn").style.display = "inline";
-    document.getElementById("rejectBtn").style.display = "inline";
-
-    session.on('ended', () => {
-      document.getElementById("status").innerText = "Chamada encerrada.";
-      hideButtons();
+      if (e.originator === 'remote') {
+        session = e.session;
+        updateStatus("Chamada recebida!", "incoming");
+        showButton("answerBtn");
+        showButton("rejectBtn");
+  
+        session.on('ended', () => {
+          updateStatus("Chamada encerrada", "ended");
+          hideAllButtons();
+        });
+  
+        session.on('failed', () => {
+          updateStatus("Chamada falhou ou foi rejeitada", "failed");
+          hideAllButtons();
+        });
+  
+        session.on('accepted', () => {
+          updateStatus("Chamada ativa", "active");
+          hideButton("answerBtn");
+          hideButton("rejectBtn");
+          showButton("endBtn");
+        });
+  
+        session.connection.addEventListener("addstream", function (e) {
+          document.getElementById('remoteAudio').srcObject = e.stream;
+        });
+      }
     });
-
-    session.on('failed', () => {
-      document.getElementById("status").innerText = "Chamada falhou ou foi rejeitada.";
-      hideButtons();
-    });
-
-    session.on('accepted', () => {
-      document.getElementById("status").innerText = "Chamada ativa.";
-      document.getElementById("endBtn").style.display = "inline";
-    });
-
-    session.connection.addEventListener("addstream", function(e) {
-      document.getElementById('remoteAudio').srcObject = e.stream;
-    });
-  }
-});
+  
+    function answerCall() {
+      session.answer({
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: 1 },
+        pcConfig: {
+          iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
+        }
+      });
+  
+      hideButton("answerBtn");
+      hideButton("rejectBtn");
+      showButton("endBtn");
+    }
+  
     function rejectCall() {
-      session.terminate();
-    }
-
-    function updateStatus(text, state) {
-      const statusElement = document.getElementById("status");
-      statusElement.innerText = text;
-      
-      // Remove all state classes
-      statusElement.classList.remove("status-waiting", "status-calling", "status-incoming", "status-active", "status-ended", "status-failed", "status-confirmed");
-      
-      // Add appropriate state class
-      if (state) {
-        statusElement.classList.add("status-" + state);
-      } else {
-        statusElement.classList.add("status-waiting");
-      }
-      
-      // Update status dot
-      const statusDot = document.querySelector(".status-dot");
-      statusDot.className = "status-dot";
-      if (state) {
-        statusDot.classList.add("status-dot-" + state);
-      } else {
-        statusDot.classList.add("status-dot-waiting");
-      }
-      
-      if (state !== "incoming") {
-        hideButtons();
+      if (session) {
+        session.terminate();
+        updateStatus("Chamada rejeitada", "failed");
+        hideAllButtons();
       }
     }
-
-    function showButtons() {
-      document.getElementById("answerBtn").style.display = "inline-block";
-      document.getElementById("rejectBtn").style.display = "inline-block";
-    }
-
-    function hideButtons() {
-      document.getElementById("answerBtn").style.display = "none";
-      document.getElementById("rejectBtn").style.display = "none";
-    }
-
+  
     function endCall() {
       if (session) {
         session.terminate();
-        updateStatus("Chamada encerrada pelo usuário.", "ended");
-        document.getElementById("endBtn").style.display = "none";
+        updateStatus("Chamada encerrada pelo usuário", "ended");
+        hideAllButtons();
       }
     }
+  
+    function updateStatus(text, state) {
+      const statusText = document.getElementById("status");
+      const statusDot = document.querySelector(".status-dot");
+  
+      statusText.innerText = text;
+  
+      const allStates = ["waiting", "calling", "incoming", "active", "ended", "failed"];
+      allStates.forEach(s => {
+        statusText.classList.remove("status-" + s);
+        statusDot.classList.remove("status-dot-" + s);
+      });
+  
+      if (state) {
+        statusText.classList.add("status-" + state);
+        statusDot.classList.add("status-dot-" + state);
+      } else {
+        statusText.classList.add("status-waiting");
+        statusDot.classList.add("status-dot-waiting");
+      }
+    }
+  
+    function showButton(id) {
+      document.getElementById(id).style.display = "inline-block";
+    }
+  
+    function hideButton(id) {
+      document.getElementById(id).style.display = "none";
+    }
+  
+    function hideAllButtons() {
+      ["answerBtn", "rejectBtn", "endBtn"].forEach(hideButton);
+    }
   </script>
+
 </body>
 </html>
