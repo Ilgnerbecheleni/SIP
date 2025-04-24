@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebRTC SIP Call</title>
+</head>
+<body>
+  <h2>Ramal 1000</h2>
+  <p>Status: <span id="status">Aguardando...</span></p>
+
+  <button onclick="makeCall()">Ligar para 1001</button>
+  <button id="answerBtn" style="display:none;" onclick="answerCall()">Atender</button>
+  <button id="rejectBtn" style="display:none;" onclick="rejectCall()">Rejeitar</button>
+  <button id="endBtn" style="display:none;" onclick="endCall()">Finalizar Chamada</button>
+  <audio id="remoteAudio" autoplay></audio>
+
+  <script src="jssip.min.js"></script>
+  <script>
+    const socket = new JsSIP.WebSocketInterface('wss://webrtc.jobsconnect.com.br:8089/ws');
+    const configuration = {
+      sockets: [socket],
+      uri: 'sip:1000@webrtc.jobsconnect.com.br',
+      password: 'senha1000'
+    };
+
+    const ua = new JsSIP.UA(configuration);
+    ua.start();
+
+    let session = null;
+
+    function makeCall() {
+      const eventHandlers = {
+        'progress': () => updateStatus("Chamada em progresso..."),
+        'failed': e => updateStatus("Chamada falhou"),
+        'ended': () => updateStatus("Chamada encerrada"),
+        'confirmed': () => updateStatus("Chamada confirmada")
+      };
+
+      const options = {
+        eventHandlers,
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: 1 }
+      };
+
+      session = ua.call('sip:1001@webrtc.jobsconnect.com.br', options);
+
+      session.connection.addEventListener("addstream", function(e) {
+        document.getElementById('remoteAudio').srcObject = e.stream;
+      });
+    }
+
+    ua.on('newRTCSession', function(e) {
+      if (e.originator === 'remote') {
+        session = e.session;
+        updateStatus("Chamada recebida!");
+        showButtons();
+
+        session.on('ended',  () => {
+  updateStatus("Chamada encerrada.");
+  hideButtons();
+});
+session.on('failed', () => {
+  updateStatus("Chamada falhou ou foi rejeitada.");
+  hideButtons();
+});
+       
+        session.on('accepted', () => {
+          updateStatus("Chamada ativa.");
+          document.getElementById("endBtn").style.display = "inline";
+        });
+
+        session.connection.addEventListener("addstream", function(e) {
+          document.getElementById('remoteAudio').srcObject = e.stream;
+        });
+      }
+    });
+
+    function answerCall() {
+      session.answer({
+        mediaConstraints: { audio: true, video: false },
+        rtcOfferConstraints: { offerToReceiveAudio: 1 }
+      });
+    }
+
+    function rejectCall() {
+      session.terminate();
+    }
+
+    function updateStatus(text) {
+      document.getElementById("status").innerText = text;
+      hideButtons();
+    }
+
+    function showButtons() {
+      document.getElementById("answerBtn").style.display = "inline";
+      document.getElementById("rejectBtn").style.display = "inline";
+    }
+
+    function hideButtons() {
+      document.getElementById("answerBtn").style.display = "none";
+      document.getElementById("rejectBtn").style.display = "none";
+    }
+
+    function endCall() {
+  if (session) {
+    document.getElementById("endBtn").style.display = "none";
+    session.terminate();
+    updateStatus("Chamada encerrada pelo usuário.");
+  }
+}
+  </script>
+</body>
+</html>
